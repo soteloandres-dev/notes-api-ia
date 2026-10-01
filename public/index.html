@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-lg shadow-sm gap-4">
+      <h1 class="text-2xl font-bold text-gray-800">📌 Mis Notas</h1>
+      <input type="text" id="searchInput" placeholder="Buscar notas..." 
+             class="border rounded-lg px-4 py-2 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </header>
+
+    <section class="bg-white p-6 rounded-lg shadow-sm space-y-4">
+      <h2 class="text-lg font-semibold text-gray-700">Crear Nueva Nota</h2>
+      <div class="flex flex-col gap-3">
+        <input type="text" id="titleInput" placeholder="Título (mínimo 3 caracteres)" class="border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <textarea id="contentInput" placeholder="Contenido de la nota..." class="border rounded-lg px-4 py-2 h-24 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        <button id="saveBtn" class="bg-blue-600 text-white font-medium py-2 px-6 rounded-lg hover:bg-blue-700 self-start transition-colors">
+          Guardar Nota
+        </button>
+      </div>
+    </section>
+
+    <main id="notesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    </main>
+
+  </div>
+
+  <script>
+    const notesContainer = document.getElementById('notesContainer');
+    const searchInput = document.getElementById('searchInput');
+    const titleInput = document.getElementById('titleInput');
+    const contentInput = document.getElementById('contentInput');
+    const saveBtn = document.getElementById('saveBtn');
+
+    async function loadNotes(query = '') {
+      try {
+        const res = await fetch(`/notes${query ? `?search=${query}` : ''}`);
+        const notes = await res.json();
+        
+        if (!Array.isArray(notes) || notes.length === 0) {
+          notesContainer.innerHTML = `<p class="text-gray-500 col-span-2 text-center py-8">No hay notas guardadas.</p>`;
+          return;
+        }
+
+        notesContainer.innerHTML = notes.map(n => `
+          <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start">
+                <h3 class="font-bold text-gray-800 text-lg">${n.title}</h3>
+                <button onclick="deleteNote(${n.id})" class="text-red-500 hover:text-red-700 font-semibold text-sm p-1 rounded transition-colors" title="Eliminar nota">
+                  ✕
+                </button>
+              </div>
+              <p class="text-gray-600 mt-2 text-sm whitespace-pre-line">${n.content || ''}</p>
+            </div>
+            <span class="text-xs text-gray-400 mt-4 block">ID: ${n.id}</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error al cargar notas:', err);
+      }
+    }
+
+    async function deleteNote(id) {
+      if (!confirm('¿Estás seguro de que deseas eliminar esta nota?')) return;
+      
+      try {
+        const res = await fetch(`/notes/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadNotes(searchInput.value.trim());
+        } else {
+          alert('Error al eliminar la nota.');
+        }
+      } catch (err) {
+        console.error('Error al eliminar:', err);
+      }
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+
+      if (title.length < 3) {
+        alert('El título debe tener al menos 3 caracteres.');
+        return;
+      }
+
+      const res = await fetch('/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content })
+      });
+
+      if (res.ok) {
+        titleInput.value = '';
+        contentInput.value = '';
+        loadNotes();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Error al guardar la nota.');
+      }
+    });
+
+    searchInput.addEventListener('input', (e) => loadNotes(e.target.value));
+
+    // Cargar al inicio
+    loadNotes();
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "title": "first note",
+    "content": "test content"
+  },
+  {
+    "id": 3,
+    "title": "third note",
+    "content": "new content"
+  },
+  {
+    "id": 3,
+    "title": "preparing test",
+    "content": "description of note"
+  }
+]
