@@ -10,7 +10,7 @@
     "tsx": "^3.10.0"
   },
   "scripts": {
-    "dev": "npx tsx watch app.ts",
+    "dev": "npx tsx watch server.ts",
     "build": "tsc"
   }
 }

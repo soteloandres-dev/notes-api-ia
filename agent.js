@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
-// 🟢 Client de Ollama con timeout extendido a 5 minutos
+// 🟢 Cliente de Ollama con timeout extendido a 5 minutos
 const ollama = new Ollama({
   fetch: (url, options) => {
     return fetch(url, {
@@ -38,11 +38,20 @@ function readFile(filePath) {
 
 function writeFile(filePath, content) {
   try {
-    const fullPath = path.resolve(filePath);
+    // 🟢 Prevenir que el agente escriba en .js en lugar de .ts dentro de src/
+    let targetPath = filePath;
+    if (targetPath.endsWith('.js') && !targetPath.includes('node_modules')) {
+      const tsPath = targetPath.replace(/\.js$/, '.ts');
+      if (fs.existsSync(path.resolve(tsPath)) || targetPath.includes('src/')) {
+        targetPath = tsPath;
+      }
+    }
+
+    const fullPath = path.resolve(targetPath);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
     const cleanContent = cleanCodeContent(content);
     fs.writeFileSync(fullPath, cleanContent, 'utf-8');
-    return `Éxito: El archivo '${filePath}' fue actualizado/creado correctamente.`;
+    return `Éxito: El archivo '${targetPath}' fue actualizado/creado correctamente.`;
   } catch (error) {
     return `Error al escribir archivo: ${error.message}`;
   }
@@ -58,7 +67,6 @@ function executeCommand(command) {
   }
 }
 
-// 🟢 FUNCIÓN DE MEMORIA PERSISTENTE: Guardar nueva regla aprendida
 function saveRule(rule) {
   try {
     const rulesPath = path.resolve('agent_rules.md');
@@ -86,7 +94,47 @@ function checkTypeScript() {
   }
 }
 
-// 🟢 Cargar reglas aprendidas de agent_rules.md para el System Prompt
+function runApiTests() {
+  const testScript = `
+    import request from 'supertest';
+    import app from './app.js';
+
+    async function testApi() {
+      try {
+        const healthRes = await request(app).get('/health');
+        if (healthRes.status !== 200) throw new Error('GET /health fallo');
+
+        const getRes = await request(app).get('/notes');
+        if (getRes.status !== 200) throw new Error('GET /notes fallo');
+
+        const postRes = await request(app)
+          .post('/notes')
+          .send({ title: 'Nota de Test', content: 'Contenido autogenerado' });
+        if (postRes.status !== 201 && postRes.status !== 200) {
+          throw new Error('POST /notes fallo al crear la nota');
+        }
+
+        console.log('SUCCESS: Todas las pruebas HTTP pasaron correctamente.');
+      } catch (err) {
+        console.error('FAILED:', err.message);
+        process.exit(1);
+      }
+    }
+
+    testApi();
+  `;
+
+  try {
+    fs.writeFileSync('temp_runner.ts', testScript, 'utf-8');
+    const output = execSync('npx tsx temp_runner.ts', { encoding: 'utf-8', cwd: process.cwd() });
+    if (fs.existsSync('temp_runner.ts')) fs.unlinkSync('temp_runner.ts');
+    return `Éxito en las pruebas HTTP:\n${output}`;
+  } catch (error) {
+    if (fs.existsSync('temp_runner.ts')) fs.unlinkSync('temp_runner.ts');
+    return `Error en las pruebas HTTP:\n${error.stdout || error.stderr || error.message}`;
+  }
+}
+
 function getAgentRules() {
   const rulesPath = path.resolve('agent_rules.md');
   if (fs.existsSync(rulesPath)) {
@@ -95,11 +143,13 @@ function getAgentRules() {
   return "No hay reglas aprendidas previas.";
 }
 
+// 🟢 CORRECCIÓN CLAVE 1: Mapear 'run_tests' en los ejecutores
 const toolExecutors = {
   read_file: (args) => readFile(args.filePath),
   write_file: (args) => writeFile(args.filePath, args.content),
   execute_command: (args) => executeCommand(args.command),
   save_rule: (args) => saveRule(args.rule),
+  run_tests: () => runApiTests(),
 };
 
 const tools = [
@@ -123,7 +173,7 @@ const tools = [
       parameters: {
         type: 'object',
         properties: {
-          filePath: { type: 'string', description: 'Ruta del archivo' },
+          filePath: { type: 'string', description: 'Ruta del archivo (.ts para código en src/)' },
           content: { type: 'string', description: 'Contenido a escribir' }
         },
         required: ['filePath', 'content']
@@ -142,7 +192,6 @@ const tools = [
       }
     }
   },
-  // 🟢 NUEVA HERRAMIENTA: Guardar lección aprendida
   {
     type: 'function',
     function: {
@@ -152,6 +201,18 @@ const tools = [
         type: 'object',
         properties: { rule: { type: 'string', description: 'La regla clara y concisa a recordar para el futuro' } },
         required: ['rule']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_tests',
+      description: 'Ejecuta una serie de peticiones HTTP (GET, POST) contra la API para validar que los endpoints respondan correctamente sin errores 500 o 404.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
       }
     }
   }
@@ -184,19 +245,18 @@ function getNextTaskFromPlan(planContent) {
 }
 
 // ============================================================================
-// 2. BUCLE PRINCIPAL CON MEMORIA PERSISTENTE
+// 2. BUCLE PRINCIPAL
 // ============================================================================
 
 async function runPlanAgent() {
   console.log(`\n==================================================`);
-  console.log(` AGENTE CON MEMORIA PERSISTENTE (AGENT_RULES) INICIADO`);
+  console.log(` AGENTE CON PRUEBAS Y MEMORIA PERSISTENTE INICIADO`);
   console.log(`==================================================\n`);
 
   let isWorking = true;
   let iterations = 0;
   const maxIterations = 15;
 
-  // 🟢 LEER MEMORIA A LARGO PLAZO
   const memoryRules = getAgentRules();
   console.log(`🧠 [Memoria Cargada]: Se leyeron las reglas de 'agent_rules.md'\n`);
 
@@ -208,10 +268,15 @@ Tu trabajo es ejecutar las tareas de 'plan.md' una por una.
 
 REGLAS OBLIGATORIAS Y MEMORIA DE PROYECTO:
 ${memoryRules}
+// Dentro del arreglo messages en agent.js (en el role: 'system'):
 
-INSTRUCCIONES DE APRENDIZAJE:
-1. Si un error de TypeScript ocurre y logras corregirlo, DEBES llamar a la herramienta 'save_rule' para guardar una regla concisa en 'agent_rules.md' y no repetir el error en el futuro.
-2. Trabaja en UNA sola tarea a la vez y actualiza 'plan.md' marcando [- [x]] al finalizar.`
+REGLA CRÍTICA DE EDICIÓN:
+Al modificar un archivo existente con 'write_file', DEBES leerlo primero con 'read_file' y MANTENER todo el código, imports y rutas anteriores, agregando únicamente la nueva función solicitada. Queda PROHIBIDO sobrescribir un archivo dejando solo el código nuevo.
+
+REGLAS DE ARCHIVOS Y PRUEBAS:
+1. Al usar 'write_file' en la carpeta 'src/', SIEMPRE escribe en archivos '.ts' (ejemplo: 'src/notes.router.ts').
+2. Cuando la tarea pida 'ejecutar run_tests', usa DIRECTAMENTE la herramienta 'run_tests'.
+3. Trabaja en UNA sola tarea a la vez y actualiza 'plan.md' marcando [- [x]] al finalizar.`
     }
   ];
 
@@ -242,8 +307,11 @@ INSTRUCCIONES DE APRENDIZAJE:
       content: `Estado actual de plan.md:\n\n${planContent}\n\nTAREA ACTIVA: "${currentTask}".`
     });
 
-    // Mantenemos los últimos 8 mensajes para controlar memoria inmediata
-    const recentMessages = messages.slice(-8);
+    // 🟢 CORRECCIÓN CLAVE 2: Mantener el System Prompt activo recortando solo el historial reciente
+    const recentMessages = [
+      messages[0],
+      ...messages.slice(-6)
+    ];
 
     const response = await ollama.chat({
       model: 'qwen2.5-coder',
@@ -270,7 +338,7 @@ INSTRUCCIONES DE APRENDIZAJE:
         }
 
         if (name === 'read_file' && lastAction === 'read_file') {
-          console.log(`⚠️️ [Advertencia Loop]: Evitando doble lectura continua...\n`);
+          console.log(`⚠ [Advertencia Loop]: Evitando doble lectura continua...\n`);
         }
 
         lastAction = name;
@@ -290,10 +358,10 @@ INSTRUCCIONES DE APRENDIZAJE:
         if (tsAudit.success) {
           console.log(`[Autocorrección]: TypeScript OK (0 errores).\n`);
         } else {
-          console.log(`[Autocorrección]: Error detectado. Solicitando corrección y registro de regla...\n`);
+          console.log(`[Autocorrección]: Error detectado. Solicitando corrección...\n`);
           messages.push({
             role: 'user',
-            content: `Error de compilación en TypeScript:\n\n${tsAudit.error}\n\n1. Corrige el código con write_file.\n2. Llama a 'save_rule' para registrar la lección aprendida en agent_rules.md.`
+            content: `Error de compilación en TypeScript:\n\n${tsAudit.error}\n\n1. Corrige el código con write_file asegurando que modificas el archivo .ts correspondiente.`
           });
         }
       }
