@@ -49,7 +49,7 @@
         }
 
         notesContainer.innerHTML = notes.map(n => `
-          <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 flex flex-col justify-between">
+          <div class="bg-white p-5 rounded-lg shadow-sm border-l-4 border-blue-500 flex flex-col justify-between transition-all duration-200 ease-in-out hover:scale-105 hover:bg-slate-100 hover:shadow-xl">
             <div>
               <div class="flex justify-between items-start">
                 <h3 class="font-bold text-gray-800 text-lg">${n.title}</h3>
