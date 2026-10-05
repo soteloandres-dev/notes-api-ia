@@ -10,9 +10,8 @@
   <div class="max-w-4xl mx-auto space-y-6">
     
     <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-lg shadow-sm gap-4">
-      <h1 class="text-2xl font-bold text-gray-800">📌 Mis Notas</h1>
-      <input type="text" id="searchInput" placeholder="Buscar notas..." 
-             class="border rounded-lg px-4 py-2 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <h1 class="text-2xl font-bold text-gray-800">📌 Mis Notas <span id="notes-count" style="font-size: 0.6em; opacity: 0.8;"></span></h1>
+      <input type="text" id="searchInput" placeholder="Buscar notas..." class="border rounded-lg px-4 py-2 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
     </header>
 
     <section class="bg-white p-6 rounded-lg shadow-sm space-y-4">
@@ -37,6 +36,7 @@
     const titleInput = document.getElementById('titleInput');
     const contentInput = document.getElementById('contentInput');
     const saveBtn = document.getElementById('saveBtn');
+    const countNotes = document.getElementById('notes-count');
 
     async function loadNotes(query = '') {
       try {
@@ -74,11 +74,22 @@
         const res = await fetch(`/notes/${id}`, { method: 'DELETE' });
         if (res.ok) {
           loadNotes(searchInput.value.trim());
+          updateNotesCount();
         } else {
           alert('Error al eliminar la nota.');
         }
       } catch (err) {
         console.error('Error al eliminar:', err);
+      }
+    }
+
+    async function updateNotesCount() {
+      try {
+        const res = await fetch('/notes/count');
+        const data = await res.json();
+        countNotes.textContent = `(${data.total} notas)`;
+      } catch (err) {
+        console.error('Error al obtener el conteo de notas:', err);
       }
     }
 
@@ -101,6 +112,7 @@
         titleInput.value = '';
         contentInput.value = '';
         loadNotes();
+        updateNotesCount();
       } else {
         const data = await res.json();
         alert(data.message || 'Error al guardar la nota.');
@@ -111,6 +123,7 @@
 
     // Cargar al inicio
     loadNotes();
+    updateNotesCount();
   </script>
 </body>
 </html>

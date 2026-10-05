@@ -1,4 +1,4 @@
-import express from 'express';
+import { Router, type Request, type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -33,9 +33,14 @@ function writeNotes(notes: Note[]) {
   fs.writeFileSync(notesFilePath, JSON.stringify(notes, null, 2));
 }
 
-const router = express.Router();
+const router: Router = Router();
 
-router.get('/', (req, res) => {
+router.get('/count', (req: Request, res: Response) => {
+  const notes = readNotes();
+  return res.json({ total: notes.length });
+});
+
+router.get('/', (req: Request, res: Response) => {
   const searchQuery = req.query.search?.toString().toLowerCase();
   const notes = readNotes();
   if (searchQuery) {
@@ -45,16 +50,16 @@ router.get('/', (req, res) => {
   res.json(notes);
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   const note = readNotes().find(note => note.id === id);
   if (note) {
     return res.json(note);
   }
-  res.status(404).json({ message: 'Note not found' });
+  res.status(404).json({ message: 'Noteee not found' });
 });
 
-router.post('/', (req, res) => {
+router.post('/', (req: Request, res: Response) => {
   const { title, content } = req.body;
   if (!title || title.length < 3) {
     return res.status(400).json({ message: 'Title must be at least 3 characters long' });
@@ -69,7 +74,7 @@ router.post('/', (req, res) => {
   res.status(201).json(newNote);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   const { title, content } = req.body;
   if (!title || title.length < 3) {
@@ -85,7 +90,7 @@ router.put('/:id', (req, res) => {
   res.status(404).json({ message: 'Note not found' });
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   const notes = readNotes();
   const noteIndex = notes.findIndex(note => note.id === id);

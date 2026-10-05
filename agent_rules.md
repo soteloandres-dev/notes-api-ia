@@ -4,3 +4,4 @@
 - En este proyecto Node ESM, las importaciones de archivos locales deben incluir la extensión `.js` (ejemplo: `import notesRouter from './src/notes.router.js'`).
 - El punto de entrada principal del servidor es `app.ts` en la raíz. No intentes crear ni ejecutar `server.ts`.
 - Al modificar archivos existentes con `write_file`, conserva todo el código anterior y agrega únicamente las nuevas funciones solicitadas.
+- Al importar tipos de TypeScript (como Request, Response de 'express'), utiliza siempre 'import { type Request, type Response }' debido a la regla verbatimModuleSyntax del tsconfig.json.

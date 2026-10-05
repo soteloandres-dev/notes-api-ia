@@ -11,3 +11,4 @@
 - [x] Implementar el endpoint `DELETE /notes/:id` en `src/notes.router.ts` para eliminar la nota por ID de `data/notes.json` y retornar status 200 o 204
 - [x] Actualizar `public/index.html` añadiendo un botón de "Eliminar" en cada tarjeta de nota que ejecute `DELETE /notes/:id` mediante `fetch` y recargue la lista
 - [x] Ejecutar auditoría de compilación con `npx tsc --noEmit` para verificar que no haya errores de tipos
+- [x] Añadir la ruta `router.get('/count', ...)` dentro de `src/notes.router.ts` para responder `{ total: X }` y ejecutar `run_tests`
