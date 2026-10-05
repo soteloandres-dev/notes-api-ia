@@ -14,7 +14,7 @@ const ollama = new Ollama({
 });
 
 // ============================================================================
-// 1. HERRAMIENTAS DEL SISTEMA
+// 1. HERRAMIENTAS DEL SISTEMA Y MANEJO DE RUTAS
 // ============================================================================
 
 function cleanCodeContent(content) {
@@ -26,32 +26,55 @@ function cleanCodeContent(content) {
     .trim();
 }
 
+function resolveProjectPath(filePath) {
+  // Garantiza que la ruta siempre sea relativa a la raíz del proyecto
+  const normalized = path.normalize(filePath).replace(/^(\.\/|\/)/, '');
+  return path.resolve(process.cwd(), normalized);
+}
+
 function readFile(filePath) {
   try {
-    const fullPath = path.resolve(filePath);
-    if (!fs.existsSync(fullPath)) return `Error: El archivo '${filePath}' no existe.`;
+    const fullPath = resolveProjectPath(filePath);
+    if (!fs.existsSync(fullPath)) return `Error: El archivo '${filePath}' no existe en '${fullPath}'.`;
     return fs.readFileSync(fullPath, 'utf-8');
   } catch (error) {
     return `Error al leer archivo: ${error.message}`;
   }
 }
 
+function markTaskAsCompletedInPlan(taskText) {
+  try {
+    const planPath = resolveProjectPath('plan.md');
+    if (!fs.existsSync(planPath)) return;
+
+    let content = fs.readFileSync(planPath, 'utf-8');
+    // Escapa caracteres especiales de regex para buscar la tarea exacta
+    const escapedTask = taskText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`- \\[ \\] ${escapedTask}`, 'g');
+
+    if (regex.test(content)) {
+      const updatedContent = content.replace(regex, `- [x] ${taskText}`);
+      fs.writeFileSync(planPath, updatedContent, 'utf-8');
+      console.log(`\n✅ [Auto-Plan]: Tarea marcada en 'plan.md' automáticamente: "${taskText.slice(0, 50)}..."\n`);
+    }
+  } catch (error) {
+    console.error(`Error actualizando plan.md automáticamente: ${error.message}`);
+  }
+}
+
 function writeFile(filePath, content) {
   try {
-    // 🟢 Prevenir que el agente escriba en .js en lugar de .ts dentro de src/
-    let targetPath = filePath;
-    if (targetPath.endsWith('.js') && !targetPath.includes('node_modules')) {
-      const tsPath = targetPath.replace(/\.js$/, '.ts');
-      if (fs.existsSync(path.resolve(tsPath)) || targetPath.includes('src/')) {
-        targetPath = tsPath;
-      }
-    }
-
-    const fullPath = path.resolve(targetPath);
+    const fullPath = resolveProjectPath(filePath);
+    
+    // Crear directorios padres si no existen
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    
     const cleanContent = cleanCodeContent(content);
     fs.writeFileSync(fullPath, cleanContent, 'utf-8');
-    return `Éxito: El archivo '${targetPath}' fue actualizado/creado correctamente.`;
+    
+    // Retornar la ruta relativa limpia para retroalimentación
+    const relativePath = path.relative(process.cwd(), fullPath);
+    return `Éxito: El archivo '${relativePath}' fue actualizado/creado correctamente.`;
   } catch (error) {
     return `Error al escribir archivo: ${error.message}`;
   }
@@ -69,7 +92,7 @@ function executeCommand(command) {
 
 function saveRule(rule) {
   try {
-    const rulesPath = path.resolve('agent_rules.md');
+    const rulesPath = resolveProjectPath('agent_rules.md');
     const cleanRule = `- ${rule.trim().replace(/^- /, '')}\n`;
     
     if (!fs.existsSync(rulesPath)) {
@@ -125,25 +148,30 @@ function runApiTests() {
   `;
 
   try {
-    fs.writeFileSync('temp_runner.ts', testScript, 'utf-8');
+    const tempRunnerPath = resolveProjectPath('temp_runner.ts');
+    fs.writeFileSync(tempRunnerPath, testScript, 'utf-8');
     const output = execSync('npx tsx temp_runner.ts', { encoding: 'utf-8', cwd: process.cwd() });
-    if (fs.existsSync('temp_runner.ts')) fs.unlinkSync('temp_runner.ts');
+    if (fs.existsSync(tempRunnerPath)) fs.unlinkSync(tempRunnerPath);
     return `Éxito en las pruebas HTTP:\n${output}`;
   } catch (error) {
-    if (fs.existsSync('temp_runner.ts')) fs.unlinkSync('temp_runner.ts');
+    const tempRunnerPath = resolveProjectPath('temp_runner.ts');
+    if (fs.existsSync(tempRunnerPath)) fs.unlinkSync(tempRunnerPath);
     return `Error en las pruebas HTTP:\n${error.stdout || error.stderr || error.message}`;
   }
 }
 
 function getAgentRules() {
-  const rulesPath = path.resolve('agent_rules.md');
+  const rulesPath = resolveProjectPath('agent_rules.md');
   if (fs.existsSync(rulesPath)) {
     return fs.readFileSync(rulesPath, 'utf-8');
   }
   return "No hay reglas aprendidas previas.";
 }
 
-// 🟢 CORRECCIÓN CLAVE 1: Mapear 'run_tests' en los ejecutores
+// ============================================================================
+// 2. HERRAMIENTAS Y EJECUTORES
+// ============================================================================
+
 const toolExecutors = {
   read_file: (args) => readFile(args.filePath),
   write_file: (args) => writeFile(args.filePath, args.content),
@@ -157,10 +185,10 @@ const tools = [
     type: 'function',
     function: {
       name: 'read_file',
-      description: 'Lee el contenido de un archivo local.',
+      description: 'Lee el contenido de un archivo local en la raíz del proyecto.',
       parameters: {
         type: 'object',
-        properties: { filePath: { type: 'string', description: 'Ruta del archivo' } },
+        properties: { filePath: { type: 'string', description: 'Ruta relativa del archivo desde la raíz (ej: "src/notes.router.ts", "public/index.html")' } },
         required: ['filePath']
       }
     }
@@ -169,12 +197,12 @@ const tools = [
     type: 'function',
     function: {
       name: 'write_file',
-      description: 'Crea o sobrescribe un archivo en el disco.',
+      description: 'Crea o sobrescribe un archivo en el disco respetando la estructura del proyecto.',
       parameters: {
         type: 'object',
         properties: {
-          filePath: { type: 'string', description: 'Ruta del archivo (.ts para código en src/)' },
-          content: { type: 'string', description: 'Contenido a escribir' }
+          filePath: { type: 'string', description: 'Ruta relativa exacta del archivo desde la raíz del proyecto (ej: "src/notes.router.ts", "public/index.html")' },
+          content: { type: 'string', description: 'Contenido completo del archivo' }
         },
         required: ['filePath', 'content']
       }
@@ -196,10 +224,10 @@ const tools = [
     type: 'function',
     function: {
       name: 'save_rule',
-      description: 'Guarda una regla o lección aprendida en agent_rules.md cuando resuelves un error técnico complejo.',
+      description: 'Guarda una regla o lección aprendida en agent_rules.md.',
       parameters: {
         type: 'object',
-        properties: { rule: { type: 'string', description: 'La regla clara y concisa a recordar para el futuro' } },
+        properties: { rule: { type: 'string', description: 'La regla clara y concisa a recordar' } },
         required: ['rule']
       }
     }
@@ -208,7 +236,7 @@ const tools = [
     type: 'function',
     function: {
       name: 'run_tests',
-      description: 'Ejecuta una serie de peticiones HTTP (GET, POST) contra la API para validar que los endpoints respondan correctamente sin errores 500 o 404.',
+      description: 'Ejecuta las pruebas de integración HTTP contra la API.',
       parameters: {
         type: 'object',
         properties: {},
@@ -245,7 +273,7 @@ function getNextTaskFromPlan(planContent) {
 }
 
 // ============================================================================
-// 2. BUCLE PRINCIPAL
+// 3. BUCLE PRINCIPAL CON CONTEXTO DE ARQUITECTURA
 // ============================================================================
 
 async function runPlanAgent() {
@@ -263,20 +291,24 @@ async function runPlanAgent() {
   const messages = [
     {
       role: 'system',
-      content: `Eres un desarrollador experto en Node.js, Express y TypeScript.
-Tu trabajo es ejecutar las tareas de 'plan.md' una por una.
+      content: `Eres un desarrollador Full-Stack experto en Node.js, Express, TypeScript y Frontend.
+Tu objetivo es completar las tareas de 'plan.md' una a una con máxima precisión.
 
-REGLAS OBLIGATORIAS Y MEMORIA DE PROYECTO:
-${memoryRules}
-// Dentro del arreglo messages en agent.js (en el role: 'system'):
+ARQUITECTURA DE DIRECTORIOS DEL PROYECTO:
+- 'src/' -> Exclusivo para código de la API backend en TypeScript (.ts). No coloques vistas HTML o assets aquí.
+- 'public/' -> Exclusivo para código del frontend web estático (index.html, JS cliente, CSS).
+- 'data/' -> Archivos de persistencia local en JSON (notes.json).
+- Raíz ('./') -> Archivos de configuración (package.json, tsconfig.json, plan.md, agent_rules.md).
 
-REGLA CRÍTICA DE EDICIÓN:
-Al modificar un archivo existente con 'write_file', DEBES leerlo primero con 'read_file' y MANTENER todo el código, imports y rutas anteriores, agregando únicamente la nueva función solicitada. Queda PROHIBIDO sobrescribir un archivo dejando solo el código nuevo.
+REGLAS OBLIGATORIAS:
+1. Respetar siempre las rutas según la arquitectura indicada (ej: las vistas van en 'public/index.html', nunca dentro de 'src/').
+2. Antes de modificar un archivo existente con 'write_file', léelo con 'read_file' y conserva su estructura previo a los cambios.
+3. Al modificar archivos dentro de 'src/', asegúrate de que sean archivos TypeScript (.ts). No alteres 'tsconfig.json' salvo que la tarea lo solicite explícitamente.
+4. Tras completar los cambios solicitados en una tarea, el sistema actualizará 'plan.md' automáticamente.
+5. NO intentes hacer commits en Git.
 
-REGLAS DE ARCHIVOS Y PRUEBAS:
-1. Al usar 'write_file' en la carpeta 'src/', SIEMPRE escribe en archivos '.ts' (ejemplo: 'src/notes.router.ts').
-2. Cuando la tarea pida 'ejecutar run_tests', usa DIRECTAMENTE la herramienta 'run_tests'.
-3. Trabaja en UNA sola tarea a la vez y actualiza 'plan.md' marcando [- [x]] al finalizar.`
+REGLAS APRENDIDAS Y MEMORIA:
+${memoryRules}`
     }
   ];
 
@@ -307,7 +339,6 @@ REGLAS DE ARCHIVOS Y PRUEBAS:
       content: `Estado actual de plan.md:\n\n${planContent}\n\nTAREA ACTIVA: "${currentTask}".`
     });
 
-    // 🟢 CORRECCIÓN CLAVE 2: Mantener el System Prompt activo recortando solo el historial reciente
     const recentMessages = [
       messages[0],
       ...messages.slice(-6)
@@ -328,7 +359,7 @@ REGLAS DE ARCHIVOS Y PRUEBAS:
     }
 
     if (toolCalls.length > 0) {
-      let wroteFiles = false;
+      let modifiedFiles = [];
 
       for (const toolCall of toolCalls) {
         const name = toolCall.function.name;
@@ -342,7 +373,9 @@ REGLAS DE ARCHIVOS Y PRUEBAS:
         }
 
         lastAction = name;
-        if (name === 'write_file') wroteFiles = true;
+        if (name === 'write_file' && args.filePath) {
+          modifiedFiles.push(args.filePath);
+        }
 
         console.log(`[Acción]: Ejecutando '${name}'`);
         const executor = toolExecutors[name];
@@ -352,17 +385,27 @@ REGLAS DE ARCHIVOS Y PRUEBAS:
         messages.push({ role: 'tool', content: result });
       }
 
+      const wroteFiles = modifiedFiles.length > 0;
+
       if (wroteFiles) {
-        console.log(`[Autocorrección]: Verificando tipos con 'npx tsc --noEmit'...`);
-        const tsAudit = checkTypeScript();
-        if (tsAudit.success) {
-          console.log(`[Autocorrección]: TypeScript OK (0 errores).\n`);
-        } else {
-          console.log(`[Autocorrección]: Error detectado. Solicitando corrección...\n`);
-          messages.push({
-            role: 'user',
-            content: `Error de compilación en TypeScript:\n\n${tsAudit.error}\n\n1. Corrige el código con write_file asegurando que modificas el archivo .ts correspondiente.`
-          });
+        // 1. Marca la tarea en plan.md automáticamente tras cualquier modificación exitosa de archivos
+        markTaskAsCompletedInPlan(currentTask);
+
+        // 2. Autocorrección INTELIGENTE: solo audita TypeScript si se modificaron archivos .ts en src/
+        const modifiedTsFile = modifiedFiles.some(file => file.endsWith('.ts') || file.includes('src/'));
+
+        if (modifiedTsFile) {
+          console.log(`[Autocorrección]: Verificando tipos con 'npx tsc --noEmit'...`);
+          const tsAudit = checkTypeScript();
+          if (tsAudit.success) {
+            console.log(`[Autocorrección]: TypeScript OK (0 errores).\n`);
+          } else {
+            console.log(`[Autocorrección]: Error de compilación detectado. Solicitando corrección al agente...\n`);
+            messages.push({
+              role: 'user',
+              content: `Error de compilación en TypeScript:\n\n${tsAudit.error}\n\nCorrige únicamente los tipos o declaraciones en el archivo .ts correspondiente dentro de 'src/'. NO modifiques tsconfig.json.`
+            });
+          }
         }
       }
     } else {

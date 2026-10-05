@@ -1,14 +1,5 @@
-# Plan de Desarrollo: Frontend para Notes API
+# Plan de Ajustes Visuales para Modo Oscuro
 
-- [x] Crear estructura inicial con Express y TypeScript
-- [x] Modificar `src/notes.router.ts` para agregar persistencia de notas en un archivo JSON `data/notes.json`
-- [x] Crear el endpoint `GET /notes` leyendo desde `data/notes.json`
-- [x] Crear el endpoint `POST /notes` escribiendo la nueva nota en `data/notes.json`
-- [x] Ejecutar prueba de sintaxis y compilación
-- [x] Configurar Express para servir archivos estáticos desde la carpeta `public/`
-- [x] Crear el archivo `public/index.html` con un dashboard simple (lista de notas, buscador y formulario de creación)
-- [x] Ejecutar `npx tsc --noEmit` para verificar que la configuración de Express y TypeScript sigue limpia
-- [x] Implementar el endpoint `DELETE /notes/:id` en `src/notes.router.ts` para eliminar la nota por ID de `data/notes.json` y retornar status 200 o 204
-- [x] Actualizar `public/index.html` añadiendo un botón de "Eliminar" en cada tarjeta de nota que ejecute `DELETE /notes/:id` mediante `fetch` y recargue la lista
-- [x] Ejecutar auditoría de compilación con `npx tsc --noEmit` para verificar que no haya errores de tipos
-- [x] Añadir la ruta `router.get('/count', ...)` dentro de `src/notes.router.ts` para responder `{ total: X }` y ejecutar `run_tests`
+- [x] 1. Editar public/index.html para añadir las clases "dark:bg-gray-900 dark:text-gray-100" a la etiqueta <body> de modo que todo el fondo de la pantalla cambie a oscuro al activar el tema.
+- [x] 2. Editar public/index.html para añadir las clases "dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600" a los elementos <input> y <textarea> para que sus campos no destaquen en blanco en modo oscuro.
+- [x] 3. Editar public/index.html para aplicar estilos al botón #themeToggleBtn con la clase "fixed bottom-6 right-6 bg-gray-800 dark:bg-amber-400 text-white dark:text-gray-900 p-4 rounded-full shadow-lg" para que flote correctamente en la esquina inferior.
