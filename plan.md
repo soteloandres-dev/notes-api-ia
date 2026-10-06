@@ -1,5 +1,5 @@
-# Plan de Ajustes Visuales para Modo Oscuro
+# Plan de Implementación de Fecha de Creación y Ordenamiento
 
-- [x] 1. Editar public/index.html para añadir las clases "dark:bg-gray-900 dark:text-gray-100" a la etiqueta <body> de modo que todo el fondo de la pantalla cambie a oscuro al activar el tema.
-- [x] 2. Editar public/index.html para añadir las clases "dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600" a los elementos <input> y <textarea> para que sus campos no destaquen en blanco en modo oscuro.
-- [x] 3. Editar public/index.html para aplicar estilos al botón #themeToggleBtn con la clase "fixed bottom-6 right-6 bg-gray-800 dark:bg-amber-400 text-white dark:text-gray-900 p-4 rounded-full shadow-lg" para que flote correctamente en la esquina inferior.
+- [x] 1. Editar src/notes.router.ts para agregar 'createdAt?: string' a la interfaz Note, asignar new Date().toISOString() en POST /notes para notas nuevas y ordenar las notas descendentemente por createdAt antes de responder en GET /notes.
+- [x] 2. Crear la función auxiliar formatDate(isoString) en el script de public/index.html para retornar new Date(isoString).toLocaleString('es-CL').
+- [x] 3. Editar public/index.html dentro de loadNotes para incluir <span>📅 ${formatDate(n.createdAt)}</span> al lado del ID de la tarjeta.

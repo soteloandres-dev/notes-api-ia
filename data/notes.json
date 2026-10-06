@@ -2,16 +2,24 @@
   {
     "id": 1,
     "title": "first note",
-    "content": "test content"
-  },
+    "content": "test content",
+    "createdAt": "2024-01-29T20:00:00.000Z"
+  },  
   {
     "id": 3,
     "title": "third note",
-    "content": "new content"
+    "content": "new content",
+    "createdAt": "2024-06-19T20:00:00.000Z"
   },
   {
     "id": 3,
     "title": "preparing test",
-    "content": "description of note"
+    "createdAt": "2024-06-09T20:00:00.000Z"
+  },
+  {
+    "id": 4,
+    "title": "Nota de Test",
+    "content": "Contenido autogenerado",
+    "createdAt": "2024-07-14T20:00:00.000Z"
   }
 ]

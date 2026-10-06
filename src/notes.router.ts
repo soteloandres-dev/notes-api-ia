@@ -7,6 +7,7 @@ interface Note {
   id: number;
   title: string;
   content: string;
+  createdAt?: string;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,7 +48,7 @@ router.get('/', (req: Request, res: Response) => {
     const filteredNotes = notes.filter(note => note.title.toLowerCase().includes(searchQuery));
     return res.json(filteredNotes);
   }
-  res.json(notes);
+  res.json(notes.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime()));
 });
 
 router.get('/:id', (req: Request, res: Response) => {
@@ -56,7 +57,7 @@ router.get('/:id', (req: Request, res: Response) => {
   if (note) {
     return res.json(note);
   }
-  res.status(404).json({ message: 'Noteee not found' });
+  res.status(404).json({ message: 'Note not found' });
 });
 
 router.post('/', (req: Request, res: Response) => {
@@ -68,7 +69,8 @@ router.post('/', (req: Request, res: Response) => {
   const newNote: Note = {
     id: currentNotes.length + 1,
     title,
-    content: content || ''
+    content: content || '',
+    createdAt: new Date().toISOString()
   };
   writeNotes([...currentNotes, newNote]);
   res.status(201).json(newNote);
@@ -83,7 +85,7 @@ router.put('/:id', (req: Request, res: Response) => {
   const notes = readNotes();
   const noteIndex = notes.findIndex(note => note.id === id);
   if (noteIndex !== -1) {
-    notes[noteIndex] = { id, title, content };
+    notes[noteIndex] = { id, title, content, createdAt: new Date().toISOString() };
     writeNotes(notes);
     return res.json(notes[noteIndex]);
   }

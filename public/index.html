@@ -68,6 +68,14 @@
       const contentInput = document.getElementById("contentInput");
       const saveBtn = document.getElementById("saveBtn");
 
+      function formatDate(isoString) {
+        return new Date(isoString).toLocaleDateString('es-CL', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      }
+
       async function loadNotes(query = "") {
         try {
           const res = await fetch(
@@ -95,12 +103,13 @@
             </div>
             <p class="text-gray-600 dark:text-gray-300 mt-2 text-sm whitespace-pre-line">${n.content || ""}</p>
           </div>
-          <span class="text-xs text-gray-400 dark:text-gray-500 mt-4 block">ID: ${n.id}</span>
+          <div class="flex justify-between items-center text-xs text-gray-400 dark:text-gray-500 mt-4">
+            <span>ID: ${n.id}</span>
+            <span>📅 ${formatDate(n.createdAt)}</span>
+          </div>
         </div>
-      `,
-              )
+      `,)
               .join("");
-
             notesCount.textContent = ` (${data.length})`;
           } else {
             notesContainer.innerHTML = `<p class="text-gray-500 dark:text-gray-400 col-span-2 text-center py-8">No hay notas guardadas.</p>`;
@@ -123,6 +132,8 @@
           console.error("Error al eliminar:", err);
         }
       }
+
+ 
 
       saveBtn.addEventListener("click", async () => {
         const title = titleInput.value.trim();
